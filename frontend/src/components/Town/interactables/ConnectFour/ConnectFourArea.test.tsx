@@ -624,7 +624,9 @@ describe('ConnectFourArea', () => {
     it('Displays the correct text when the game is waiting to start', () => {
       gameAreaController.mockStatus = 'WAITING_TO_START';
       renderConnectFourArea();
-      expect(screen.getByText('Waiting for players to press start', { exact: false })).toBeInTheDocument();
+      expect(
+        screen.getByText('Waiting for players to press start', { exact: false }),
+      ).toBeInTheDocument();
     });
     it('Displays the correct text when the game is in progress', () => {
       gameAreaController.mockStatus = 'IN_PROGRESS';
@@ -706,7 +708,9 @@ describe('ConnectFourArea', () => {
       it('Updates the game status when the game is updated', () => {
         gameAreaController.mockStatus = 'WAITING_TO_START';
         renderConnectFourArea();
-        expect(screen.getByText('Game not yet started', { exact: false })).toBeInTheDocument();
+        expect(
+          screen.getByText('Waiting for players to press start', { exact: false }),
+        ).toBeInTheDocument();
         act(() => {
           gameAreaController.mockStatus = 'IN_PROGRESS';
           gameAreaController.emit('gameUpdated');

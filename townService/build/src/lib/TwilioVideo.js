@@ -1,0 +1,39 @@
+import dotenv from 'dotenv';
+import Twilio from 'twilio';
+import { logError } from '../Utils';
+dotenv.config();
+const MAX_ALLOWED_SESSION_DURATION = 3600;
+const MISSING_TOKEN_NAME = 'missing';
+export default class TwilioVideo {
+    static _instance;
+    _twilioAccountSid;
+    _twilioApiKeySID;
+    _twilioApiKeySecret;
+    constructor(twilioAccountSid, twilioAPIKeySID, twilioAPIKeySecret) {
+        this._twilioAccountSid = twilioAccountSid;
+        this._twilioApiKeySID = twilioAPIKeySID;
+        this._twilioApiKeySecret = twilioAPIKeySecret;
+    }
+    static getInstance() {
+        if (!TwilioVideo._instance) {
+            TwilioVideo._instance = new TwilioVideo(process.env.TWILIO_ACCOUNT_SID || MISSING_TOKEN_NAME, process.env.TWILIO_API_KEY_SID || MISSING_TOKEN_NAME, process.env.TWILIO_API_KEY_SECRET || MISSING_TOKEN_NAME);
+        }
+        return TwilioVideo._instance;
+    }
+    async getTokenForTown(coveyTownID, clientIdentity) {
+        if (this._twilioAccountSid === MISSING_TOKEN_NAME ||
+            this._twilioApiKeySID === MISSING_TOKEN_NAME ||
+            this._twilioApiKeySecret === MISSING_TOKEN_NAME) {
+            logError('Twilio tokens missing. Video chat will be disabled, and viewing areas will not work. Please be sure to configure the variables in the townService .env file as described in the README');
+            return MISSING_TOKEN_NAME;
+        }
+        const token = new Twilio.jwt.AccessToken(this._twilioAccountSid, this._twilioApiKeySID, this._twilioApiKeySecret, {
+            ttl: MAX_ALLOWED_SESSION_DURATION,
+        });
+        token.identity = clientIdentity;
+        const videoGrant = new Twilio.jwt.AccessToken.VideoGrant({ room: coveyTownID });
+        token.addGrant(videoGrant);
+        return token.toJwt();
+    }
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiVHdpbGlvVmlkZW8uanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyIuLi8uLi8uLi9zcmMvbGliL1R3aWxpb1ZpZGVvLnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUFBLE9BQU8sTUFBTSxNQUFNLFFBQVEsQ0FBQztBQUM1QixPQUFPLE1BQU0sTUFBTSxRQUFRLENBQUM7QUFDNUIsT0FBTyxFQUFFLFFBQVEsRUFBRSxNQUFNLFVBQVUsQ0FBQztBQUdwQyxNQUFNLENBQUMsTUFBTSxFQUFFLENBQUM7QUFHaEIsTUFBTSw0QkFBNEIsR0FBRyxJQUFJLENBQUM7QUFPMUMsTUFBTSxrQkFBa0IsR0FBRyxTQUFTLENBQUM7QUFDckMsTUFBTSxDQUFDLE9BQU8sT0FBTyxXQUFXO0lBQ3RCLE1BQU0sQ0FBQyxTQUFTLENBQWM7SUFFOUIsaUJBQWlCLENBQVM7SUFFMUIsZ0JBQWdCLENBQVM7SUFFekIsbUJBQW1CLENBQVM7SUFFcEMsWUFDRSxnQkFBd0IsRUFDeEIsZUFBdUIsRUFDdkIsa0JBQTBCO1FBRTFCLElBQUksQ0FBQyxpQkFBaUIsR0FBRyxnQkFBZ0IsQ0FBQztRQUMxQyxJQUFJLENBQUMsZ0JBQWdCLEdBQUcsZUFBZSxDQUFDO1FBQ3hDLElBQUksQ0FBQyxtQkFBbUIsR0FBRyxrQkFBa0IsQ0FBQztJQUNoRCxDQUFDO0lBRU0sTUFBTSxDQUFDLFdBQVc7UUFDdkIsSUFBSSxDQUFDLFdBQVcsQ0FBQyxTQUFTLEVBQUUsQ0FBQztZQUMzQixXQUFXLENBQUMsU0FBUyxHQUFHLElBQUksV0FBVyxDQUNyQyxPQUFPLENBQUMsR0FBRyxDQUFDLGtCQUFrQixJQUFJLGtCQUFrQixFQUNwRCxPQUFPLENBQUMsR0FBRyxDQUFDLGtCQUFrQixJQUFJLGtCQUFrQixFQUNwRCxPQUFPLENBQUMsR0FBRyxDQUFDLHFCQUFxQixJQUFJLGtCQUFrQixDQUN4RCxDQUFDO1FBQ0osQ0FBQztRQUNELE9BQU8sV0FBVyxDQUFDLFNBQVMsQ0FBQztJQUMvQixDQUFDO0lBRUQsS0FBSyxDQUFDLGVBQWUsQ0FBQyxXQUFtQixFQUFFLGNBQXNCO1FBQy9ELElBQ0UsSUFBSSxDQUFDLGlCQUFpQixLQUFLLGtCQUFrQjtZQUM3QyxJQUFJLENBQUMsZ0JBQWdCLEtBQUssa0JBQWtCO1lBQzVDLElBQUksQ0FBQyxtQkFBbUIsS0FBSyxrQkFBa0IsRUFDL0MsQ0FBQztZQUNELFFBQVEsQ0FDTix3TEFBd0wsQ0FDekwsQ0FBQztZQUNGLE9BQU8sa0JBQWtCLENBQUM7UUFDNUIsQ0FBQztRQUNELE1BQU0sS0FBSyxHQUFHLElBQUksTUFBTSxDQUFDLEdBQUcsQ0FBQyxXQUFXLENBQ3RDLElBQUksQ0FBQyxpQkFBaUIsRUFDdEIsSUFBSSxDQUFDLGdCQUFnQixFQUNyQixJQUFJLENBQUMsbUJBQW1CLEVBQ3hCO1lBQ0UsR0FBRyxFQUFFLDRCQUE0QjtTQUNsQyxDQUNGLENBQUM7UUFDRixLQUFLLENBQUMsUUFBUSxHQUFHLGNBQWMsQ0FBQztRQUNoQyxNQUFNLFVBQVUsR0FBRyxJQUFJLE1BQU0sQ0FBQyxHQUFHLENBQUMsV0FBVyxDQUFDLFVBQVUsQ0FBQyxFQUFFLElBQUksRUFBRSxXQUFXLEVBQUUsQ0FBQyxDQUFDO1FBQ2hGLEtBQUssQ0FBQyxRQUFRLENBQUMsVUFBVSxDQUFDLENBQUM7UUFDM0IsT0FBTyxLQUFLLENBQUMsS0FBSyxFQUFFLENBQUM7SUFDdkIsQ0FBQztDQUNGIn0=

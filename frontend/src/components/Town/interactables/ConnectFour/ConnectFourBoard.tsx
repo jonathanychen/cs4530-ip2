@@ -1,6 +1,9 @@
-import { Button, chakra, Container } from '@chakra-ui/react';
-import ConnectFourAreaController from '../../../../classes/interactable/ConnectFourAreaController';
-import React from 'react';
+import { Button, chakra, Container, useToast } from '@chakra-ui/react';
+import ConnectFourAreaController, {
+  ConnectFourCell,
+} from '../../../../classes/interactable/ConnectFourAreaController';
+import React, { useEffect, useState } from 'react';
+import { ConnectFourColIndex, ConnectFourRowIndex } from '../../../../types/CoveyTownSocket';
 
 export type ConnectFourGameProps = {
   gameAreaController: ConnectFourAreaController;
@@ -49,11 +52,45 @@ const StyledConnectFourSquare = chakra(Button, {
 export default function ConnectFourBoard({
   gameAreaController,
 }: ConnectFourGameProps): JSX.Element {
+  const [board, setBoard] = useState<ConnectFourCell[][]>(gameAreaController.board);
+  const [isOurTurn, setIsOurTurn] = useState(gameAreaController.isOurTurn);
+  const toast = useToast();
+  useEffect(() => {
+    gameAreaController.addListener('turnChanged', setIsOurTurn);
+    gameAreaController.addListener('boardChanged', setBoard);
+    return () => {
+      gameAreaController.removeListener('boardChanged', setBoard);
+      gameAreaController.removeListener('turnChanged', setIsOurTurn);
+    };
+  }, [gameAreaController]);
+
   return (
     <StyledConnectFourBoard aria-label='Connect Four Board'>
-      Implement this to show the connect four board for the game area controller
-      {gameAreaController}
-      <StyledConnectFourSquare aria-label='Cell 0,0 (Empty)'>0,0</StyledConnectFourSquare>
+      {board.map((row, rowIndex) => {
+        return row.map((cell, colIndex) => {
+          const color = cell || 'Empty';
+          return (
+            <StyledConnectFourSquare
+              key={`${rowIndex}.${colIndex}`}
+              onClick={async () => {
+                try {
+                  await gameAreaController.makeMove(colIndex as ConnectFourColIndex);
+                } catch (e) {
+                  toast({
+                    title: 'Error making move',
+                    description: (e as Error).toString(),
+                    status: 'error',
+                  });
+                }
+              }}
+              disabled={!isOurTurn}
+              aria-label={`Cell ${rowIndex},${colIndex} (${color})`}
+              bgColor={cell || ''}>
+              {cell}
+            </StyledConnectFourSquare>
+          );
+        });
+      })}
     </StyledConnectFourBoard>
   );
 }

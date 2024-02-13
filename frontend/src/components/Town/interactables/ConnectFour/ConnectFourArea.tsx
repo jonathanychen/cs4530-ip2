@@ -1,5 +1,11 @@
-import { InteractableID } from '../../../../types/CoveyTownSocket';
-import React from 'react';
+import { Button, Container, List, ListItem, useToast } from '@chakra-ui/react';
+import { GameStatus, InteractableID } from '../../../../types/CoveyTownSocket';
+import React, { useEffect, useState } from 'react';
+import { useInteractableAreaController } from '../../../../classes/TownController';
+import ConnectFourAreaController from '../../../../classes/interactable/ConnectFourAreaController';
+import useTownController from '../../../../hooks/useTownController';
+import PlayerController from '../../../../classes/PlayerController';
+import ConnectFourBoard from './ConnectFourBoard';
 
 /**
  * The ConnectFourArea component renders the Connect Four game area.
@@ -43,7 +49,135 @@ export default function ConnectFourArea({
 }: {
   interactableID: InteractableID;
 }): JSX.Element {
+  const gameAreaController =
+    useInteractableAreaController<ConnectFourAreaController>(interactableID);
+  const townController = useTownController();
+
+  const [gameStatus, setGameStatus] = useState<GameStatus>(gameAreaController.status);
+  const [moveCount, setMoveCount] = useState<number>(gameAreaController.moveCount);
+  const [isLoading, setLoading] = useState(false);
+  const [red, setRed] = useState<PlayerController | undefined>(gameAreaController.red);
+  const [yellow, setYellow] = useState<PlayerController | undefined>(gameAreaController.yellow);
+  const toast = useToast();
+
+  useEffect(() => {
+    const updateGameState = () => {
+      setGameStatus(gameAreaController.status || 'WAITING_FOR_PLAYERS');
+      setMoveCount(gameAreaController.moveCount || 0);
+      setRed(gameAreaController.red);
+      setYellow(gameAreaController.yellow);
+    };
+    gameAreaController.addListener('gameUpdated', updateGameState);
+    const onGameEnd = () => {
+      const winner = gameAreaController.winner;
+      if (!winner) {
+        toast({
+          title: 'Game over',
+          description: 'Game ended in a tie',
+          status: 'info',
+        });
+      } else if (winner === townController.ourPlayer) {
+        toast({
+          title: 'Game over',
+          description: 'You won!',
+          status: 'success',
+        });
+      } else {
+        toast({
+          title: 'Game over',
+          description: `You lost :(`,
+          status: 'error',
+        });
+      }
+    };
+    gameAreaController.addListener('gameEnd', onGameEnd);
+    return () => {
+      gameAreaController.removeListener('gameEnd', onGameEnd);
+      gameAreaController.removeListener('gameUpdated', updateGameState);
+    };
+  }, [townController, gameAreaController, toast]);
+
+  let gameStatusText = <></>;
+  if (gameStatus === 'IN_PROGRESS') {
+    gameStatusText = (
+      <>
+        Game in progress, {moveCount} moves in, currently{' '}
+        {gameAreaController.whoseTurn === townController.ourPlayer
+          ? 'your'
+          : gameAreaController.whoseTurn?.userName + "'s"}{' '}
+        turn
+      </>
+    );
+  } else {
+    let joinGameButton = <></>;
+    if (
+      (gameAreaController.status === 'WAITING_FOR_PLAYERS' && !gameAreaController.isPlayer) ||
+      gameAreaController.status === 'OVER'
+    ) {
+      joinGameButton = (
+        <Button
+          onClick={async () => {
+            setLoading(true);
+            try {
+              await gameAreaController.joinGame();
+            } catch (err) {
+              toast({
+                title: 'Error joining game',
+                description: (err as Error).toString(),
+                status: 'error',
+              });
+            }
+            setLoading(false);
+          }}
+          isLoading={isLoading}
+          disabled={isLoading}>
+          Join New Game
+        </Button>
+      );
+      gameStatusText = (
+        <b>
+          {gameStatus === 'WAITING_FOR_PLAYERS' ? 'Waiting for players to join' : 'Game over'}
+          {joinGameButton}
+        </b>
+      );
+    } else if (gameAreaController.status === 'WAITING_TO_START') {
+      joinGameButton = (
+        <Button
+          onClick={async () => {
+            setLoading(true);
+            try {
+              await gameAreaController.startGame();
+            } catch (err) {
+              toast({
+                title: 'Error joining game',
+                description: (err as Error).toString(),
+                status: 'error',
+              });
+            }
+            setLoading(false);
+          }}
+          isLoading={isLoading}
+          disabled={isLoading}>
+          Start Game
+        </Button>
+      );
+      gameStatusText = (
+        <b>
+          Waiting for players to press start
+          {joinGameButton}
+        </b>
+      );
+    }
+  }
+
   return (
-    <>Implement this to show the connect four area corresponding to area id {interactableID}</>
+    <Container>
+      {gameStatusText}
+      <List aria-label='list of players in the game'>
+        <ListItem>Red: {red?.userName || '(No player yet!)'}</ListItem>
+        <ListItem>Yellow: {yellow?.userName || '(No player yet!)'}</ListItem>
+      </List>
+      <ConnectFourBoard gameAreaController={gameAreaController} />
+    </Container>
   );
 }

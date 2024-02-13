@@ -7,6 +7,8 @@ import {
   Box,
   Flex,
   Heading,
+  List,
+  ListItem,
   Modal,
   ModalBody,
   ModalCloseButton,
@@ -14,11 +16,18 @@ import {
   ModalHeader,
   ModalOverlay,
 } from '@chakra-ui/react';
-import React, { useCallback } from 'react';
-import { useInteractable } from '../../../classes/TownController';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useInteractable, useInteractableAreaController } from '../../../classes/TownController';
 import useTownController from '../../../hooks/useTownController';
-import { InteractableID } from '../../../types/CoveyTownSocket';
+import { GameState, InteractableID } from '../../../types/CoveyTownSocket';
 import GameAreaInteractable from './GameArea';
+import GameAreaController, {
+  GameEventTypes,
+} from '../../../classes/interactable/GameAreaController';
+import ChatChannel from './ChatChannel';
+import Leaderboard from './Leaderboard';
+import ConnectFourArea from './ConnectFour/ConnectFourArea';
+import TicTacToeArea from './TicTacToe/TicTacToeArea';
 
 export const INVALID_GAME_AREA_TYPE_MESSAGE = 'Invalid game area type';
 
@@ -37,6 +46,34 @@ export const INVALID_GAME_AREA_TYPE_MESSAGE = 'Invalid game area type';
  *
  */
 function GameArea({ interactableID }: { interactableID: InteractableID }): JSX.Element {
+  const gameAreaController =
+    useInteractableAreaController<GameAreaController<GameState, GameEventTypes>>(interactableID);
+  const [observers, setObservers] = useState(gameAreaController.observers);
+  const [history, setHistory] = useState(gameAreaController.history);
+
+  const getGameArea = () => {
+    if (gameAreaController.toInteractableAreaModel().type === 'ConnectFourArea') {
+      return <ConnectFourArea interactableID={interactableID} />;
+    } else if (gameAreaController.toInteractableAreaModel().type === 'TicTacToeArea') {
+      return <TicTacToeArea interactableID={interactableID} />;
+    } else {
+      return <Heading>{INVALID_GAME_AREA_TYPE_MESSAGE}</Heading>;
+    }
+  };
+
+  useEffect(() => {
+    const updateGameState = () => {
+      setObservers(gameAreaController.observers);
+      setHistory(gameAreaController.history);
+    };
+
+    gameAreaController.addListener('gameUpdated', updateGameState);
+
+    return () => {
+      gameAreaController.removeListener('gameUpdated', updateGameState);
+    };
+  }, [gameAreaController]);
+
   return (
     <>
       <Accordion allowToggle>
@@ -48,7 +85,9 @@ function GameArea({ interactableID }: { interactableID: InteractableID }): JSX.E
               </Box>
               <AccordionIcon />
             </AccordionButton>
-            <AccordionPanel>Leaderboard should probably go here</AccordionPanel>
+            <AccordionPanel>
+              <Leaderboard results={history} />
+            </AccordionPanel>
           </Heading>
         </AccordionItem>
         <AccordionItem>
@@ -60,11 +99,17 @@ function GameArea({ interactableID }: { interactableID: InteractableID }): JSX.E
               </Box>
             </AccordionButton>
           </Heading>
-          <AccordionPanel>Observers list should probably go here</AccordionPanel>
+          <AccordionPanel>
+            <List aria-label='list of observers in the game'>
+              {observers.map(element => {
+                return <ListItem key={element.id}>{element.userName}</ListItem>;
+              })}
+            </List>
+          </AccordionPanel>
         </AccordionItem>
       </Accordion>
       <Flex>
-        <Box>The game area for {interactableID} might go well in this box</Box>
+        <Box>{getGameArea()}</Box>
         <Box
           style={{
             height: '400px',
@@ -76,7 +121,7 @@ function GameArea({ interactableID }: { interactableID: InteractableID }): JSX.E
               display: 'flex',
               flexDirection: 'column',
             }}>
-            Chat channel should probably go here
+            <ChatChannel interactableID={interactableID}></ChatChannel>
           </div>
         </Box>
       </Flex>

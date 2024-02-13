@@ -175,5 +175,14 @@ export function useInteractableAreaOccupants(
  *
  */
 export function useInteractableAreaFriendlyName(area: GenericInteractableAreaController): string {
-  return area.friendlyName;
+  const [friendlyName, setFriendlyName] = useState(area.friendlyName);
+
+  useEffect(() => {
+    area.addListener('friendlyNameChange', setFriendlyName);
+    return () => {
+      area.removeListener('friendlyNameChange', setFriendlyName);
+    };
+  }, [area]);
+
+  return friendlyName;
 }

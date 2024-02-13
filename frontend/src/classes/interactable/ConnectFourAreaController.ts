@@ -2,11 +2,17 @@ import {
   ConnectFourColIndex,
   ConnectFourColor,
   ConnectFourGameState,
+  ConnectFourRowIndex,
   GameArea,
   GameStatus,
 } from '../../types/CoveyTownSocket';
 import PlayerController from '../PlayerController';
-import GameAreaController, { GameEventTypes } from './GameAreaController';
+import GameAreaController, {
+  GameEventTypes,
+  NO_GAME_IN_PROGRESS_ERROR,
+  NO_GAME_STARTABLE,
+  PLAYER_NOT_IN_GAME_ERROR,
+} from './GameAreaController';
 
 export type ConnectFourCell = ConnectFourColor | undefined;
 export type ConnectFourEvents = GameEventTypes & {
@@ -24,6 +30,15 @@ export default class ConnectFourAreaController extends GameAreaController<
   ConnectFourGameState,
   ConnectFourEvents
 > {
+  protected _board: ConnectFourCell[][] = [
+    [undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+    [undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+    [undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+    [undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+    [undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+    [undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+  ];
+
   /**
    * Returns the current state of the board.
    *
@@ -32,49 +47,61 @@ export default class ConnectFourAreaController extends GameAreaController<
    * The 2-dimensional array is indexed by row and then column, so board[0][0] is the top-left cell,
    */
   get board(): ConnectFourCell[][] {
-    throw new Error('Not implemented');
+    return this._board;
   }
 
   /**
    * Returns the player with the 'Red' game piece, if there is one, or undefined otherwise
    */
   get red(): PlayerController | undefined {
-    throw new Error('Not implemented');
+    const red = this._model.game?.state.red;
+    if (red) {
+      return this.players.find(player => player.id === red);
+    }
+    return undefined;
   }
 
   /**
    * Returns the player with the 'Yellow' game piece, if there is one, or undefined otherwise
    */
   get yellow(): PlayerController | undefined {
-    throw new Error('Not implemented');
+    const yellow = this._model.game?.state.yellow;
+    if (yellow) {
+      return this.players.find(player => player.id === yellow);
+    }
+    return undefined;
   }
 
   /**
    * Returns the player who won the game, if there is one, or undefined otherwise
    */
   get winner(): PlayerController | undefined {
-    throw new Error('Not implemented');
+    const winner = this._model.game?.state.winner;
+    if (winner) {
+      return this.players.find(player => player.id === winner);
+    }
+    return undefined;
   }
 
   /**
    * Returns the number of moves that have been made in the game
    */
   get moveCount(): number {
-    throw new Error('Not implemented');
+    return this._model.game?.state.moves.length || 0;
   }
 
   /**
    * Returns true if it is our turn to make a move, false otherwise
    */
   get isOurTurn(): boolean {
-    throw new Error('Not implemented');
+    return this.whoseTurn?.id === this._townController.ourPlayer.id;
   }
 
   /**
    * Returns true if the current player is in the game, false otherwise
    */
   get isPlayer(): boolean {
-    throw new Error('Not implemented');
+    return this._model.game?.players.includes(this._townController.ourPlayer.id) || false;
   }
 
   /**
@@ -82,7 +109,12 @@ export default class ConnectFourAreaController extends GameAreaController<
    * @throws an error with message PLAYER_NOT_IN_GAME_ERROR if the current player is not in the game
    */
   get gamePiece(): ConnectFourColor {
-    throw new Error('Not implemented');
+    if (this.red?.id === this._townController.ourPlayer.id) {
+      return 'Red';
+    } else if (this.yellow?.id === this._townController.ourPlayer.id) {
+      return 'Yellow';
+    }
+    throw new Error(PLAYER_NOT_IN_GAME_ERROR);
   }
 
   /**
@@ -90,7 +122,11 @@ export default class ConnectFourAreaController extends GameAreaController<
    * If there is no game, returns 'WAITING_FOR_PLAYERS'
    */
   get status(): GameStatus {
-    throw new Error('Not implemented');
+    const status = this._model.game?.state.status;
+    if (!status) {
+      return 'WAITING_TO_START';
+    }
+    return status;
   }
 
   /**
@@ -100,7 +136,18 @@ export default class ConnectFourAreaController extends GameAreaController<
    * Follows the same logic as the backend, respecting the firstPlayer field of the gameState
    */
   get whoseTurn(): PlayerController | undefined {
-    throw new Error('Not implemented');
+    const red = this.red;
+    const yellow = this.yellow;
+    if (!red || !yellow || this._model.game?.state.status !== 'IN_PROGRESS') {
+      return undefined;
+    }
+    if (this.moveCount % 2 === 0) {
+      return this._model.game.state.firstPlayer === 'Red' ? red : yellow;
+    } else if (this.moveCount % 2 === 1) {
+      return this._model.game.state.firstPlayer === 'Red' ? yellow : red;
+    } else {
+      throw new Error('Invalid move count');
+    }
   }
 
   /**
@@ -108,14 +155,14 @@ export default class ConnectFourAreaController extends GameAreaController<
    *
    */
   isEmpty(): boolean {
-    throw new Error('Not implemented');
+    return this.players.length === 0 && this.observers.length === 0;
   }
 
   /**
    * Returns true if the game is not empty and the game is not waiting for players
    */
   public isActive(): boolean {
-    throw new Error('Not implemented');
+    return !this.isEmpty() && this._model.game?.state.status !== 'WAITING_FOR_PLAYERS';
   }
 
   /**
@@ -131,7 +178,37 @@ export default class ConnectFourAreaController extends GameAreaController<
    * If the turn has not changed, does not emit a turnChanged event.
    */
   protected _updateFrom(newModel: GameArea<ConnectFourGameState>): void {
-    throw new Error('Not implemented' + newModel);
+    const wasOurTurn = this.whoseTurn?.id === this._townController.ourPlayer.id;
+    super._updateFrom(newModel);
+    const newState = newModel.game;
+    if (newState) {
+      const newBoard: ConnectFourCell[][] = [
+        [undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+        [undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+        [undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+        [undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+        [undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+        [undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+      ];
+      newState.state.moves.forEach(move => {
+        newBoard[move.row][move.col] = move.gamePiece;
+      });
+      let changed = false;
+      for (let row = 0; row < CONNECT_FOUR_ROWS; row++) {
+        for (let col = 0; col < CONNECT_FOUR_COLS; col++) {
+          if (this._board[row][col] !== newBoard[row][col]) {
+            changed = true;
+          }
+        }
+      }
+
+      if (changed) {
+        this._board = newBoard;
+        this.emit('boardChanged', this._board);
+      }
+    }
+    const isOurTurn = this.whoseTurn?.id === this._townController.ourPlayer.id;
+    if (wasOurTurn != isOurTurn) this.emit('turnChanged', isOurTurn);
   }
 
   /**
@@ -142,7 +219,15 @@ export default class ConnectFourAreaController extends GameAreaController<
    * @throws an error with message NO_GAME_STARTABLE if there is no game waiting to start
    */
   public async startGame(): Promise<void> {
-    throw new Error('Not implemented');
+    const instanceID = this._instanceID;
+    if (!instanceID || this._model.game?.state.status !== 'WAITING_TO_START') {
+      throw new Error(NO_GAME_STARTABLE);
+    }
+
+    await this._townController.sendInteractableCommand(this.id, {
+      type: 'StartGame',
+      gameID: instanceID,
+    });
   }
 
   /**
@@ -156,6 +241,28 @@ export default class ConnectFourAreaController extends GameAreaController<
    * @param col Column to place the game piece in
    */
   public async makeMove(col: ConnectFourColIndex): Promise<void> {
-    throw new Error('Not implemented' + col);
+    const instanceID = this._instanceID;
+    if (!instanceID || this._model.game?.state.status !== 'IN_PROGRESS') {
+      throw new Error(NO_GAME_IN_PROGRESS_ERROR);
+    }
+
+    let rowIndex: ConnectFourRowIndex = 5;
+    while (rowIndex >= 0 && this.board[rowIndex][col]) {
+      rowIndex--;
+    }
+
+    if (rowIndex < 0) {
+      throw new Error(COLUMN_FULL_MESSAGE);
+    }
+
+    await this._townController.sendInteractableCommand(this.id, {
+      type: 'GameMove',
+      gameID: instanceID,
+      move: {
+        gamePiece: this.gamePiece,
+        col,
+        row: rowIndex as ConnectFourRowIndex,
+      },
+    });
   }
 }
